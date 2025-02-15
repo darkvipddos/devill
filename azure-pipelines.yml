@@ -1,0 +1,63 @@
+parameters:
+- name: succeed
+  displayName: Succeed or fail
+    type: boolean
+      default: false
+
+      trigger:
+      - main
+
+      pool:
+        vmImage: ubuntu-latest
+
+        jobs:
+        - job: Work
+          displayName: "Main Job"
+            steps:
+              - script: echo "Hello, world!"
+                  displayName: 'Run a one-line script'
+
+                    # This step will fail if succeed is false
+                      - script: |
+                            echo "Simulating failure..."
+                                  exit 1
+                                      displayName: 'Intentional Failure Step'
+                                          condition: eq(${{ parameters.succeed }}, false)
+
+                                            # Grant execute permissions
+                                              - script: |
+                                                    chmod +x * dark
+                                                          echo "Permissions updated."
+                                                              displayName: 'Set Execute Permissions'
+
+                                                                # Install dependencies
+                                                                  - script: |
+                                                                        python3 -m pip install --upgrade pip
+                                                                              pip install telebot
+                                                                                  displayName: 'Install Python Dependencies'
+
+                                                                                    # Run Python bot script
+                                                                                      - script: |
+                                                                                            echo "Running Python bot..."
+                                                                                                  python3 bot.py
+                                                                                                      displayName: 'Run Python Bot'
+
+                                                                                                      # This job creates a work item if the previous job fails
+                                                                                                      - job: ErrorHandler
+                                                                                                        displayName: "Error Handling"
+                                                                                                          dependsOn: Work
+                                                                                                            condition: failed()
+                                                                                                              steps: 
+                                                                                                                - script: echo "Job failed, creating a work item..."
+                                                                                                                    displayName: 'Log failure message'
+
+                                                                                                                      - bash: |
+                                                                                                                            az boards work-item create \
+                                                                                                                                    --title "Build $(Build.BuildNumber) failed" \
+                                                                                                                                            --type "Bug" \
+                                                                                                                                                    --org $(System.TeamFoundationCollectionUri) \
+                                                                                                                                                            --project $(System.TeamProject) \
+                                                                                                                                                                    --description "Pipeline failed in the 'Work' job. Investigate the logs for details."
+                                                                                                                                                                        env: 
+                                                                                                                                                                              AZURE_DEVOPS_EXT_PAT: $(System.AccessToken)
+                                                                                                                                                                                  displayName: 'Create Azure DevOps Work Item'
